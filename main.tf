@@ -327,6 +327,10 @@ resource "kubernetes_service_account" "this" {
     }
   }
   depends_on = [var.alb_controller_depends_on]
+
+  timeouts {
+    create = "5m"
+  }
 }
 
 resource "kubernetes_cluster_role" "this" {
@@ -449,8 +453,8 @@ resource "helm_release" "alb_controller" {
 }
 
 # Generate a kubeconfig file for the EKS cluster to use in provisioners
-data "template_file" "kubeconfig" {
-  template = <<-EOF
+locals {
+  kubeconfig = <<-EOF
     apiVersion: v1
     kind: Config
     current-context: terraform
@@ -485,7 +489,7 @@ resource "null_resource" "supply_target_group_arns" {
   count = (length(var.target_groups) > 0) ? length(var.target_groups) : 0
 
   triggers = {
-    kubeconfig  = base64encode(data.template_file.kubeconfig.rendered)
+    kubeconfig  = base64encode(local.kubeconfig)
     cmd_create  = <<-EOF
       cat <<YAML | kubectl -n ${var.k8s_namespace} --kubeconfig <(echo $KUBECONFIG | base64 --decode) apply -f -
       apiVersion: elbv2.k8s.aws/v1beta1
